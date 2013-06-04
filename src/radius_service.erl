@@ -53,7 +53,8 @@ handle_call({del_client, NasName}, _From, State) ->
     end,
     {reply, ok, State};
 
-handle_call(_Request, _From, State) -> {reply, ok, State}.
+handle_call(_, _, State) ->
+    {reply, unknown_call, State}.
 
 handle_cast(_Msg, State) -> {noreply, State}.
 
