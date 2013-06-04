@@ -9,9 +9,9 @@ load(File) ->
         {ok, Fd} ->
             lists:flatten(read_line(Fd));
         {error, Reason} ->
-            error_logger:error_msg(
-                "** Can't load RADIUS dictionary file ~s~n"
-                "   for the reason ~p: ~s~n",
+            lager:critical(
+                "Can't load RADIUS dictionary file ~s "
+                "for the reason ~p: ~s",
                 [File, Reason, file:format_error(Reason)])
     end.
 

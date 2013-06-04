@@ -32,10 +32,10 @@ init([IP, Port, Callback] = Options) ->
             Clients = ets:new(clients, [{keypos, 3}]),
             {ok, #state{socket = Socket, clients = Clients, callback = Callback}};
         {error, Reason} ->
-            error_logger:error_msg(
-                "** RADIUS service can't start~n"
-                "   for the reason ~p: ~s~n"
-                "** Options were ~p~n",
+            lager:error(
+                "RADIUS service can't start "
+                "for the reason ~p: ~s "
+                "Options were ~p",
                 [Reason, inet:format_error(Reason), Options]),
             {error, Reason}
     end.
@@ -89,18 +89,18 @@ do_callback([SrcIP, SrcPort, Socket, Bin, State]) ->
                                 noreply ->
                                     nop;
                                 Unknown ->
-                                    error_logger:error_msg("Bad return from handler: ~p~n", [Unknown])
+                                    lager:critical("Bad return from handler: ~p", [Unknown])
                             end;
                         {unknown, Unknown} ->
-                            error_logger:warning_msg("Unknown request type: ~p~n", [Unknown])
+                            lager:notice("Unknown request type: ~p", [Unknown])
                     end;
                 _ ->
-                    error_logger:error_msg(
-                      "Received invalid packet from NAS: ~s~n", [inet_parse:ntoa(SrcIP)])
+                    lager:error(
+                      "Received invalid packet from NAS: ~s", [inet_parse:ntoa(SrcIP)])
             end;
         undefined ->
-            error_logger:warning_msg(
-              "Request from unknown client: ~s~n", [inet_parse:ntoa(SrcIP)])
+            lager:warning(
+              "Request from unknown client: ~s", [inet_parse:ntoa(SrcIP)])
     end.
 
 do_reply(Socket, IP, Port, Response, Request, Client) ->
@@ -109,7 +109,7 @@ do_reply(Socket, IP, Port, Response, Request, Client) ->
         {ok, Data} ->
             gen_udp:send(Socket, IP, Port, Data);
         {error, Reason} ->
-            error_logger:error_msg("Unable to respond to client due to ~p~n", [Reason])
+            lager:critical("Unable to respond to client due to ~p", [Reason])
     end.
 
 lookup_client(IP, Table) ->

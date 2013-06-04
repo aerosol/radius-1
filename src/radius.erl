@@ -7,7 +7,23 @@
 
 -export([attribute_value/2]).
 
+%% DEV
+-export([start/0]).
+
 -include("radius.hrl").
+
+%% @doc For development use
+start() ->
+    start_with_deps(?MODULE).
+
+start_with_deps(App) ->
+    case application:start(App) of
+        {error, {not_started, Dep}} ->
+            start_with_deps(Dep),
+            start_with_deps(App);
+        ok ->
+            ok
+    end.
 
 %% @doc Start RADIUS service with specified options.
 -spec start_service(atom(), [proplists:property()]) ->

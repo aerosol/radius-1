@@ -1,6 +1,6 @@
 {application, radius, [
     {description, "RADIUS"},
     {vsn, "0.0.2"},
-    {applications, [kernel, stdlib]},
+    {applications, [kernel, stdlib, lager]},
     {mod, {radius_app, []}}
 ]}.
