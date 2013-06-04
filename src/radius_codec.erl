@@ -2,8 +2,21 @@
 
 -export([decode_packet/2, attribute_value/2, identify_packet/1]).
 -export([encode_response/3, encode_attributes/1]).
+-export([encode_request/2]).
 
 -include("radius.hrl").
+
+%% @doc Encode binary RADIUS request.
+encode_request(Req = #radius_packet{}, Secret) ->
+    Code = Req#radius_packet.code,
+    Ident = Req#radius_packet.ident,
+    ReqAuth = Req#radius_packet.auth,
+    A = Req#radius_packet.attrs,
+    {ok, Attrs} = encode_attributes(A),
+    Length = <<(20 + byte_size(Attrs)):16>>,
+    Auth = erlang:md5([Code, Ident, Length, ReqAuth, Attrs, Secret]),
+    Data = [Code, Ident, Length, Auth, Attrs],
+    Data.
 
 %% @doc Decode binary RADIUS packet.
 -spec decode_packet(Bin :: binary(), Secret :: string()) ->
@@ -27,10 +40,10 @@ decode_packet(Bin, Secret) ->
                         A1 = lists:keyreplace("Message-Authenticator", 1, A, {"Message-Authenticator", <<0:128>>}),
                         {ok, A2} = encode_attributes(A1),
                         Packet1 = [Code, Ident, <<Length:16>>, Auth, A2],
-                        case crypto:md5_mac(Secret, Packet1) =:= Value of
-                            true ->
+                        case crypto:md5_mac(Secret, Packet1) of
+                            Value ->
                                 {ok, Packet};
-                            false ->
+                            _ ->
                                 lager:warn("Invalid Message-Authenticator attribute value", []),
                                 {error, invalid_message_authenticator}
                         end
@@ -86,6 +99,7 @@ identify_packet(?COA_NAK) ->
 identify_packet(Type) ->
     {unknown, Type}.
 
+
 %% @doc Encode RADIUS packet to binary
 -spec encode_response(Request :: #radius_packet{},
                       Response :: #radius_packet{},
@@ -102,7 +116,7 @@ encode_response(Request, Response, Secret) ->
                 {ok, Attrs} ->
                     Length = <<(20 + byte_size(Attrs)):16>>,
                     Auth = erlang:md5([Code, Ident, Length, ReqAuth, Attrs, Secret]),
-                    Data = list_to_binary([Code, Ident, Length, Auth, Attrs]),
+                    Data = [Code, Ident, Length, Auth, Attrs],
                     {ok, Data};
                  {error, Reason} ->
                      lager:criticial(
@@ -112,18 +126,18 @@ encode_response(Request, Response, Secret) ->
             end;
         _Value ->
             try
-                A1 = A ++ [{"Message-Authenticator", <<0:128>>}],
+                A1 = [{"Message-Authenticator", <<0:128>>} | A],
                 {ok, A2} = encode_attributes(A1),
 
                 Length = <<(20 + byte_size(A2)):16>>,
                 Packet = list_to_binary([Code, Ident, Length, ReqAuth, A2]),
                 MA = crypto:md5_mac(Secret, Packet),
 
-                A3 = A ++ [{"Message-Authenticator", MA}],
+                A3 = [{"Message-Authenticator", MA} | A],
                 {ok, A4} = encode_attributes(A3),
 
                 Auth = erlang:md5([Code, Ident, Length, ReqAuth, A4, Secret]),
-                Data = list_to_binary([Code, Ident, Length, Auth, A4]),
+                Data = [Code, Ident, Length, Auth, A4],
                 {ok, Data}
             catch
                 _:Reason ->

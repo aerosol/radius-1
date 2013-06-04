@@ -75,7 +75,7 @@ terminate(_Reason, State) ->
 %%
 %% Internal functions
 %%
-do_callback([SrcIP, SrcPort, Socket, Bin, State]) ->
+do_callback(Args = [SrcIP, SrcPort, Socket, Bin, State]) ->
     case lookup_client(SrcIP, State#state.clients) of
         {ok, #nas_spec{secret = Secret} = Client} ->
             case radius_codec:decode_packet(Bin, Secret) of
