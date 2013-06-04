@@ -167,8 +167,6 @@ decode_attribute(<<Type:8, Length:8, Rest/binary>>) ->
         _ ->
             case radius_dict:lookup_attribute(Type) of
                 not_found ->
-                    error_logger:warning_msg(
-                        "No attribute ~p found in dictionary~n", [Type]),
                     {Value, Rest1} = decode_value(Rest, Length - 2),
                     {{Type, Value}, Rest1};
                 A ->
