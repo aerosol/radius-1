@@ -63,8 +63,7 @@ handle_info({udp, Socket, SrcIP, SrcPort, Bin}, State) ->
     {noreply, State};
 
 handle_info({'EXIT', _Pid, normal}, State) -> {noreply, State};
-handle_info({'EXIT', Pid, _Reason}, State) ->
-    sweep_request(Pid),
+handle_info({'EXIT', _Pid, _Reason}, State) ->
     {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
@@ -80,34 +79,27 @@ do_callback([SrcIP, SrcPort, Socket, Bin, State]) ->
         {ok, #nas_spec{secret = Secret} = Client} ->
             case radius_codec:decode_packet(Bin, Secret) of
                 {ok, Packet} ->
-                    case request_exists(SrcIP, SrcPort, Packet) of
-                        false ->
-                            store_request(SrcIP, SrcPort, Packet, self()),
-                            case radius_codec:identify_packet(Packet#radius_packet.code) of
-                                {ok, Type} ->
-                                    Callback = State#state.callback,
-                                    case Callback:handle_request(Type, Packet, Client) of
-                                        {ok, Response} ->
-                                            do_reply(Socket, SrcIP, SrcPort, Response, Packet, Client),
-                                            sweep_request(SrcIP, SrcPort, Packet);
-                                        noreply ->
-                                            sweep_request(SrcIP, SrcPort, Packet);
-                                        Unknown ->
-                                            error_logger:error_msg("Bad return from handler: ~p~n", [Unknown])
-                                    end;
-                                {unknown, Unknown} ->
-                                    error_logger:warning_msg("Unknown request type: ~p~n", [Unknown]),
-                                    sweep_request(SrcIP, SrcPort, Packet)
+                    case radius_codec:identify_packet(Packet#radius_packet.code) of
+                        {ok, Type} ->
+                            Callback = State#state.callback,
+                            case Callback:handle_request(Type, Packet, Client) of
+                                {ok, Response} ->
+                                    do_reply(Socket, SrcIP, SrcPort, Response, Packet, Client);
+                                noreply ->
+                                    nop;
+                                Unknown ->
+                                    error_logger:error_msg("Bad return from handler: ~p~n", [Unknown])
                             end;
-                        true -> ok
+                        {unknown, Unknown} ->
+                            error_logger:warning_msg("Unknown request type: ~p~n", [Unknown])
                     end;
                 _ ->
                     error_logger:error_msg(
-                        "Received invalid packet from NAS: ~s~n", [inet_parse:ntoa(SrcIP)])
+                      "Received invalid packet from NAS: ~s~n", [inet_parse:ntoa(SrcIP)])
             end;
         undefined ->
             error_logger:warning_msg(
-                "Request from unknown client: ~s~n", [inet_parse:ntoa(SrcIP)])
+              "Request from unknown client: ~s~n", [inet_parse:ntoa(SrcIP)])
     end.
 
 do_reply(Socket, IP, Port, Response, Request, Client) ->
@@ -127,21 +119,3 @@ lookup_client(IP, Table) ->
             {ok, Client}
     end.
 
-request_exists(IP, Port, Packet) ->
-    Ident = Packet#radius_packet.ident,
-    ets:member(?MODULE, {IP, Port, Ident}).
-
-store_request(IP, Port, Packet, Pid) ->
-    Ident = Packet#radius_packet.ident,
-    ets:insert(?MODULE, {{IP, Port, Ident}, Pid}).
-
-sweep_request(Pid) ->
-    case ets:match_object(?MODULE, {'_', Pid}) of
-        [{{IP, Port, Ident}, Pid}] ->
-            ets:delete(?MODULE, {IP, Port, Ident});
-        [] -> ok
-    end.
-
-sweep_request(IP, Port, Packet) ->
-    Ident = Packet#radius_packet.ident,
-    ets:delete(?MODULE, {IP, Port, Ident}).

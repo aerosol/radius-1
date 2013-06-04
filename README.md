@@ -1,6 +1,8 @@
 RADIUS protocol
 ===============
 
+This is a private sandbox of mine; Original repo here: https://github.com/ates/radius
+
 Example:
 --------
 
