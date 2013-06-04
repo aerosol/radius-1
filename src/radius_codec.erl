@@ -315,3 +315,132 @@ lookup_value(Code, Name, Attrs) ->
                     undefined
             end
     end.
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+setup_app() ->
+    ok = radius:start(),
+    lists:foreach(fun radius_dict:add/1, radius_dict_file:load("dictionary")),
+    lists:foreach(fun radius_dict:add/1, radius_dict_file:load("dictionary.nokia")),
+    ok.
+
+radius_codec_test_() ->
+    {setup, fun setup_app/0, [
+                              {generator, fun accounting_request/0},
+                              {generator, fun access_request/0}
+                             ]}.
+
+make_label(L) when is_binary(L) ->
+    L;
+make_label(L) when is_list(L) ->
+    list_to_binary(L);
+make_label(_) ->
+    <<"unknown">>.
+
+accounting_request() ->
+    Pattern = [{"User-Name","48691003145"},
+               {"NAS-IP-Address",{10,1,6,10}},
+               {"NAS-Identifier","FI9100XX"},
+               {"NAS-Port-Type",5},
+               {"Acct-Status-Type",1},
+               {"Called-Station-Id","flexi.internet"},
+               {"Calling-Station-Id","48691003145"},
+               {"Acct-Session-Id","5c3c804d7500f10d"},
+               {"Acct-Multi-Session-Id","5c3c804d3a80001b"},
+               {"Acct-Link-Count",1},
+               {"Class",<<"000000000000000008">>},
+               {"Framed-IP-Address",{30,15,4,161}},
+               {"Service-Type",2},
+               {"Framed-Protocol",7},
+               {"Acct-Authentic",1},
+               {226,<<0,0,0,8>>},
+               {"3GPP-IMSI","260019900003145"},
+               {"3GPP-GGSN-Address",{92,60,128,77}},
+               {"3GPP-SGSN-Address",{212,2,113,34}},
+               {"3GPP-PDP-Type",0},
+               {"3GPP-Charging-Gateway-Address",{10,1,4,206}},
+               {"3GPP-IMSI-MCC-MNC","26001"},
+               {"3GPP-Charging-ID",1962995981},
+               {"3GPP-GPRS-Negotiated-QoS-profile",
+                "05-13921F739697FE74821040000000"},
+               {"3GPP-SGSN-MCC-MNC","26001"},
+               {"3GPP-Selection-Mode","1"},
+               {"3GPP-Charging-Characteristics","0800"},
+               {"3GPP-RAT-Type",1},
+               {"3GPP-IMEISV","3560590343456622"},
+               {"3GPP-Location-Info",<<1,98,240,16,1,144,255,31>>},
+               {"3GPP-MS-Time-Zone",32801},
+               {"3GPP-NSAPI","5"},
+               {"Nokia-Requested-APN","flexi.internet"},
+               {"Nokia-Session-Access-Method",<<1>>},
+               {"Nokia-Session-Charging-Type",<<4>>}],
+    Packet = <<4,29,1,101,185,58,167,59,234,55,5,176,245,153,78,209,68,36,107,146,1,13,52,
+               56,54,57,49,48,48,51,49,52,53,4,6,10,1,6,10,32,10,70,73,57,49,48,48,88,88,61,
+               6,0,0,0,5,40,6,0,0,0,1,30,16,102,108,101,120,105,46,105,110,116,101,114,110,
+               101,116,31,13,52,56,54,57,49,48,48,51,49,52,53,44,18,53,99,51,99,56,48,52,
+               100,55,53,48,48,102,49,48,100,50,18,53,99,51,99,56,48,52,100,51,97,56,48,48,
+               48,49,98,51,6,0,0,0,1,25,20,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,
+               48,56,8,6,30,15,4,161,6,6,0,0,0,2,7,6,0,0,0,7,45,6,0,0,0,1,226,6,0,0,0,8,26,
+               147,0,0,40,175,1,17,50,54,48,48,49,57,57,48,48,48,48,51,49,52,53,7,6,92,60,
+               128,77,6,6,212,2,113,34,3,6,0,0,0,0,4,6,10,1,4,206,8,7,50,54,48,48,49,2,6,
+               117,0,241,13,5,33,48,53,45,49,51,57,50,49,70,55,51,57,54,57,55,70,69,55,52,
+               56,50,49,48,52,48,48,48,48,48,48,48,18,7,50,54,48,48,49,12,3,49,13,6,48,56,
+               48,48,21,3,1,20,18,51,53,54,48,53,57,48,51,52,51,52,53,54,54,50,50,22,10,1,
+               98,240,16,1,144,255,31,23,4,128,33,10,3,53,26,28,0,0,0,94,15,16,102,108,101,
+               120,105,46,105,110,116,101,114,110,101,116,10,3,1,11,3,4>>,
+    {ok, #radius_packet{ ident = <<29>>, attrs = Attrs}} = decode_packet(Packet, "foo"),
+    [ { make_label(K),
+        fun() ->
+                ?assertEqual(V, proplists:get_value(K, Attrs))
+        end } || {K, V} <- Pattern ].
+
+access_request() ->
+    Pattern = [{"NAS-Identifier","FI9100XX"},
+               {"User-Name","48691003145"},
+               {"NAS-IP-Address",{10,1,6,10}},
+               {"NAS-Port-Type",5},
+               {"Called-Station-Id","flexi.internet"},
+               {"Calling-Station-Id","48691003145"},
+               {"Service-Type",2},
+               {"Framed-Protocol",7},
+               {"3GPP-SGSN-Address",{212,2,113,34}},
+               {"3GPP-IMSI","260019900003145"},
+               {"3GPP-PDP-Type",0},
+               {"3GPP-Charging-Gateway-Address",{10,1,4,206}},
+               {"3GPP-GGSN-Address",{92,60,128,77}},
+               {"3GPP-IMSI-MCC-MNC","26001"},
+               {"3GPP-Charging-ID",1962995981},
+               {"3GPP-Selection-Mode","1"},
+               {"3GPP-Charging-Characteristics","0800"},
+               {"3GPP-GPRS-Negotiated-QoS-profile",
+                "05-13921F739697FE74821040000000"},
+               {"3GPP-SGSN-MCC-MNC","26001"},
+               {"3GPP-IMEISV","3560590343456622"},
+               {"3GPP-RAT-Type",1},
+               {"3GPP-Location-Info",<<16#01, 16#62, 16#F0, 16#10, 16#01, 16#90, 16#FF, 16#1F>>},
+               {"3GPP-MS-Time-Zone",32801},
+               {"3GPP-NSAPI","5"},
+               {"Nokia-Requested-APN","flexi.internet"},
+               {"Acct-Session-Id","5c3c804d7500f10d"},
+               {"Acct-Multi-Session-Id","5c3c804d3a80001b"}],
+    Packet = <<1,8,1,63,157,72,191,249,0,56,34,174,49,7,66,196,129,253,85,158,32,10,70,73,
+               57,49,48,48,88,88,1,13,52,56,54,57,49,48,48,51,49,52,53,2,18,77,215,103,15,
+               206,63,153,51,119,222,188,181,76,9,3,93,4,6,10,1,6,10,61,6,0,0,0,5,30,16,102,
+               108,101,120,105,46,105,110,116,101,114,110,101,116,31,13,52,56,54,57,49,48,
+               48,51,49,52,53,6,6,0,0,0,2,7,6,0,0,0,7,26,147,0,0,40,175,6,6,212,2,113,34,1,
+               17,50,54,48,48,49,57,57,48,48,48,48,51,49,52,53,3,6,0,0,0,0,4,6,10,1,4,206,7,
+               6,92,60,128,77,8,7,50,54,48,48,49,2,6,117,0,241,13,12,3,49,13,6,48,56,48,48,
+               5,33,48,53,45,49,51,57,50,49,70,55,51,57,54,57,55,70,69,55,52,56,50,49,48,52,
+               48,48,48,48,48,48,48,18,7,50,54,48,48,49,20,18,51,53,54,48,53,57,48,51,52,51,
+               52,53,54,54,50,50,21,3,1,22,10,1,98,240,16,1,144,255,31,23,4,128,33,10,3,53,
+               26,22,0,0,0,94,15,16,102,108,101,120,105,46,105,110,116,101,114,110,101,116,
+               44,18,53,99,51,99,56,48,52,100,55,53,48,48,102,49,48,100,50,18,53,99,51,99,
+               56,48,52,100,51,97,56,48,48,48,49,98>>,
+    {ok, #radius_packet{ ident = <<8>>, attrs = Attrs}} = decode_packet(Packet, "foo"),
+    [ { make_label(K), fun() ->
+                               ?assertEqual(V, proplists:get_value(K, Attrs))
+                       end } || {K, V} <- Pattern ].
+
+
+-endif.
